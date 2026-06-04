@@ -1,5 +1,6 @@
 package com.main.themovieapp.data.remote.api
 
+import com.main.themovieapp.data.remote.response.CreditsResponse
 import com.main.themovieapp.data.remote.response.GenreResponse
 import com.main.themovieapp.data.remote.response.MovieDto
 import com.main.themovieapp.data.remote.response.MoviePagingResponse
@@ -49,4 +50,9 @@ interface TMDBApi {
         @Query("query") query: String,
         @Query("page") page: Int
     ): MoviePagingResponse
+
+    @GET("movie/{movie_id}/credits")
+    suspend fun getMovieCredits(
+        @Path("movie_id") movieId: Int
+    ): CreditsResponse
 }

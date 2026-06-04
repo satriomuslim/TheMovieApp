@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.paging.LoadState
@@ -57,7 +59,7 @@ fun DetailScreen(
                 Text(text = "Error: ${uiState.error}", color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(8.dp))
                 Button(
-                    onClick = { viewModel.fetchMovieDetailsAndTrailer() },
+                    onClick = { viewModel.fetchMovieDetails() },
                     colors = ButtonDefaults.buttonColors(containerColor = NeonPurple)
                 ) {
                     Text("Retry", color = Color.White)
@@ -140,6 +142,86 @@ fun DetailScreen(
                     Text(text = movie.overview, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium, lineHeight = 22.sp)
                     Spacer(modifier = Modifier.height(24.dp))
                 }
+            }
+        }
+
+        if (uiState.cast.isNotEmpty()) {
+            item {
+                Text(
+                    text = "Cast",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(uiState.cast.size) { index ->
+                        val actor = uiState.cast[index]
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.width(80.dp)
+                        ) {
+                            // Foto Aktor
+                            if (actor.profilePath != null) {
+                                AsyncImage(
+                                    model = "https://image.tmdb.org/t/p/w200${actor.profilePath}",
+                                    contentDescription = actor.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.DarkGray)
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(72.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF2B2B36)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = actor.name.take(1).uppercase(),
+                                        color = Color.White,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 24.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Nama Aktor Asli
+                            Text(
+                                text = actor.name,
+                                color = Color.White,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            Text(
+                                text = actor.character,
+                                color = Color.Gray,
+                                style = MaterialTheme.typography.labelSmall,
+                                textAlign = TextAlign.Center,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
 

@@ -8,6 +8,7 @@ import com.main.themovieapp.data.paging.ReviewPagingSource
 import com.main.themovieapp.data.paging.SearchPagingSource
 import com.main.themovieapp.data.paging.SimilarMoviePagingSource
 import com.main.themovieapp.data.remote.api.TMDBApi
+import com.main.themovieapp.domain.model.Cast
 import com.main.themovieapp.domain.model.Genre
 import com.main.themovieapp.domain.model.Movie
 import com.main.themovieapp.domain.model.Review
@@ -112,5 +113,22 @@ class MovieRepositoryImpl(private val api: TMDBApi) : MovieRepository {
             config = PagingConfig(pageSize = 20, enablePlaceholders = false),
             pagingSourceFactory = { SearchPagingSource(api, query) }
         ).flow
+    }
+
+    override suspend fun getMovieCast(movieId: Int): Result<List<Cast>> {
+        return try {
+            val response = api.getMovieCredits(movieId)
+            val castList = response.cast.take(15).map {
+                Cast(
+                    id = it.id,
+                    name = it.name,
+                    character = it.character,
+                    profilePath = it.profile_path
+                )
+            }
+            Result.success(castList)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
 }

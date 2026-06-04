@@ -13,4 +13,5 @@ interface MovieRepository {
     suspend fun getMovieTrailer(movieId: Int): Result<VideoTrailer?>
     suspend fun getTrendingMovies(): Result<List<Movie>>
     fun searchMovies(query: String): Flow<PagingData<Movie>>
+    suspend fun getMovieCast(movieId: Int): Result<List<Cast>>
 }

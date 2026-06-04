@@ -27,24 +27,27 @@ class DetailViewModel(
         .cachedIn(viewModelScope)
 
     init {
-        fetchMovieDetailsAndTrailer()
+        fetchMovieDetails()
     }
 
-    fun fetchMovieDetailsAndTrailer() {
+    fun fetchMovieDetails() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
 
             val movieDeferred = async { repository.getMovieDetails(movieId) }
             val trailerDeferred = async { repository.getMovieTrailer(movieId) }
+            val castDeferred = async { repository.getMovieCast(movieId) }
 
             val movieResult = movieDeferred.await()
             val trailerResult = trailerDeferred.await()
+            val castResult = castDeferred.await()
 
             if (movieResult.isSuccess) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     movie = movieResult.getOrNull(),
                     trailer = trailerResult.getOrNull(),
+                    cast = castResult.getOrDefault(emptyList()),
                     error = null
                 )
             } else {
