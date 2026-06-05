@@ -1,5 +1,8 @@
 package com.main.themovieapp.presentation.detail
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,12 +36,18 @@ import com.main.themovieapp.presentation.theme.DarkBackground
 import com.main.themovieapp.presentation.theme.NeonPurple
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun DetailScreen(
     movieId: Int,
+    initialPosterPath: String,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onBackClick: () -> Unit,
-    onSimilarMovieClick: (Int) -> Unit
+    onSimilarMovieClick: (Int, String) -> Unit
 ) {
     val viewModel: DetailViewModel = koinViewModel(parameters = { parametersOf(movieId) })
 
@@ -46,14 +55,7 @@ fun DetailScreen(
     val reviews = viewModel.reviewsFlow.collectAsLazyPagingItems()
     val similarMovies = viewModel.similarMoviesFlow.collectAsLazyPagingItems()
 
-    if (uiState.isLoading) {
-        Box(modifier = Modifier.fillMaxSize().background(DarkBackground), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = NeonPurple)
-        }
-        return
-    }
-
-    if (uiState.error != null) {
+    if (uiState.error != null && !uiState.isLoading) {
         Box(modifier = Modifier.fillMaxSize().background(DarkBackground), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(text = "Error: ${uiState.error}", color = MaterialTheme.colorScheme.error)
@@ -75,14 +77,20 @@ fun DetailScreen(
             .background(DarkBackground),
         contentPadding = PaddingValues(bottom = 24.dp)
     ) {
-        uiState.movie?.let { movie ->
-            item {
+        item {
+            with(sharedTransitionScope) {
                 Box(modifier = Modifier.fillMaxWidth().height(450.dp)) {
+                    val targetPoster = uiState.movie?.posterPath ?: initialPosterPath
                     AsyncImage(
-                        model = "https://image.tmdb.org/t/p/w780${movie.posterPath}",
-                        contentDescription = movie.title,
+                        model = "https://image.tmdb.org/t/p/w780$targetPoster",
+                        contentDescription = "Hero Image",
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .sharedElement(
+                                rememberSharedContentState(key = "image_$movieId"),
+                                animatedVisibilityScope = animatedVisibilityScope
+                            )
                     )
 
                     Box(
@@ -121,209 +129,199 @@ fun DetailScreen(
                     }
                 }
             }
+        }
 
+        if (uiState.isLoading) {
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(
-                        text = movie.title,
-                        color = Color.White,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = NeonPurple)
+                }
+            }
+        } else {
+            uiState.movie?.let { movie ->
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Text(
+                            text = movie.title,
+                            color = Color.White,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = movie.releaseDate, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(text = "★ ${String.format("%.1f", movie.voteAverage)}", color = Color(0xFFFFD700), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = movie.releaseDate, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(text = "★ ${String.format("%.1f", movie.voteAverage)}", color = Color(0xFFFFD700), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(text = movie.overview, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium, lineHeight = 22.sp)
+                        Spacer(modifier = Modifier.height(24.dp))
                     }
+                }
+            }
 
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(text = movie.overview, color = Color.LightGray, style = MaterialTheme.typography.bodyMedium, lineHeight = 22.sp)
+            if (uiState.cast.isNotEmpty()) {
+                item {
+                    Text(
+                        text = "Cast",
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(uiState.cast.size) { index ->
+                            val actor = uiState.cast[index]
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.width(80.dp)
+                            ) {
+                                if (actor.profilePath != null) {
+                                    AsyncImage(
+                                        model = "https://image.tmdb.org/t/p/w200${actor.profilePath}",
+                                        contentDescription = actor.name,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.size(72.dp).clip(CircleShape).background(Color.DarkGray)
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.size(72.dp).clip(CircleShape).background(Color(0xFF2B2B36)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(text = actor.name.take(1).uppercase(), color = Color.White, fontWeight = FontWeight.Bold, fontSize = 24.sp)
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = actor.name, color = Color.White, style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = actor.character, color = Color.Gray, style = MaterialTheme.typography.labelSmall,
+                                    textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
-        }
 
-        if (uiState.cast.isNotEmpty()) {
+            uiState.trailer?.let { trailer ->
+                item {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        Text(
+                            text = "Official Trailer",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        YouTubeTrailerPlayer(
+                            videoId = trailer.key,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(220.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                    }
+                }
+            }
+
             item {
                 Text(
-                    text = "Cast",
+                    text = "Similar Movies",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(similarMovies.itemCount) { index ->
+                        val movie = similarMovies[index]
+                        movie?.let {
+                            Box(modifier = Modifier.width(130.dp)) {
+                                MovieCard(
+                                    movie = it,
+                                    sharedTransitionScope = sharedTransitionScope,
+                                    animatedVisibilityScope = animatedVisibilityScope,
+                                    onClick = {
+                                        val poster = it.posterPath ?: ""
+                                        val encodedPoster = URLEncoder.encode(poster, StandardCharsets.UTF_8.toString())
+                                        onSimilarMovieClick(it.id, encodedPoster)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (similarMovies.loadState.append is LoadState.Loading) {
+                        item {
+                            Box(
+                                modifier = Modifier.width(50.dp).height(195.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = NeonPurple)
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            item {
+                Text(
+                    text = "User Reviews",
                     color = Color.White,
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
-            item {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(uiState.cast.size) { index ->
-                        val actor = uiState.cast[index]
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.width(80.dp)
-                        ) {
-                            // Foto Aktor
-                            if (actor.profilePath != null) {
-                                AsyncImage(
-                                    model = "https://image.tmdb.org/t/p/w200${actor.profilePath}",
-                                    contentDescription = actor.name,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.DarkGray)
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2B2B36)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = actor.name.take(1).uppercase(),
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 24.sp
-                                    )
-                                }
+
+            items(reviews.itemCount) { index ->
+                val review = reviews[index]
+                review?.let {
+                    ReviewCard(review = it)
+                }
+            }
+
+            reviews.apply {
+                when (loadState.append) {
+                    is LoadState.Loading -> {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = NeonPurple)
                             }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            // Nama Aktor Asli
+                        }
+                    }
+                    is LoadState.Error -> {
+                        val e = loadState.append as LoadState.Error
+                        item {
                             Text(
-                                text = actor.name,
-                                color = Color.White,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.SemiBold,
-                                textAlign = TextAlign.Center,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            Spacer(modifier = Modifier.height(2.dp))
-
-                            Text(
-                                text = actor.character,
-                                color = Color.Gray,
-                                style = MaterialTheme.typography.labelSmall,
-                                textAlign = TextAlign.Center,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                text = "Failed to load reviews: ${e.error.localizedMessage}",
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(16.dp)
                             )
                         }
                     }
+                    else -> {}
                 }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
-
-        uiState.trailer?.let { trailer ->
-            item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-                    Text(
-                        text = "Official Trailer",
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    YouTubeTrailerPlayer(
-                        videoId = trailer.key,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                }
-            }
-        }
-
-        item {
-            Text(
-                text = "Similar Movies",
-                color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
-        item {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                items(similarMovies.itemCount) { index ->
-                    val movie = similarMovies[index]
-                    movie?.let {
-                        Box(modifier = Modifier.width(130.dp)) {
-                            MovieCard(movie = it, onClick = { onSimilarMovieClick(it.id) })
-                        }
-                    }
-                }
-
-                if (similarMovies.loadState.append is LoadState.Loading) {
-                    item {
-                        Box(
-                            modifier = Modifier.width(50.dp).height(195.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            CircularProgressIndicator(color = NeonPurple)
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-
-        item {
-            Text(
-                text = "User Reviews",
-                color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
-        items(reviews.itemCount) { index ->
-            val review = reviews[index]
-            review?.let {
-                ReviewCard(review = it)
-            }
-        }
-
-        reviews.apply {
-            when (loadState.append) {
-                is LoadState.Loading -> {
-                    item {
-                        Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = NeonPurple)
-                        }
-                    }
-                }
-                is LoadState.Error -> {
-                    val e = loadState.append as LoadState.Error
-                    item {
-                        Text(
-                            text = "Failed to load reviews: ${e.error.localizedMessage}",
-                            color = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.padding(16.dp)
-                        )
-                    }
-                }
-                else -> {}
             }
         }
     }

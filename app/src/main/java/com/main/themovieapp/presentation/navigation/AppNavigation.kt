@@ -1,5 +1,7 @@
 package com.main.themovieapp.presentation.navigation
 
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -8,34 +10,50 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.main.themovieapp.presentation.detail.DetailScreen
 import com.main.themovieapp.presentation.home.HomeScreen
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun AppNavigation() {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "home") {
+    SharedTransitionLayout {
+        NavHost(navController = navController, startDestination = "home") {
 
-        composable("home") {
-            HomeScreen(
-                onMovieClick = { movieId ->
-                    navController.navigate("detail/$movieId")
-                }
-            )
-        }
+            composable("home") {
+                HomeScreen(
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@composable,
+                    onMovieClick = { movieId, encodedPoster ->
+                        navController.navigate("detail/$movieId?poster=$encodedPoster")
+                    }
+                )
+            }
 
-        composable(
-            route = "detail/{movieId}",
-            arguments = listOf(navArgument("movieId") { type = NavType.IntType })
-        ) { backStackEntry ->
-            val movieId = backStackEntry.arguments?.getInt("movieId") ?: return@composable
+            composable(
+                route = "detail/{movieId}?poster={poster}",
+                arguments = listOf(
+                    navArgument("movieId") { type = NavType.IntType },
+                    navArgument("poster") { type = NavType.StringType; defaultValue = "" }
+                )
+            ) { backStackEntry ->
+                val movieId = backStackEntry.arguments?.getInt("movieId") ?: return@composable
+                val posterRaw = backStackEntry.arguments?.getString("poster") ?: ""
 
-            DetailScreen(
-                movieId = movieId,
-                onBackClick = { navController.popBackStack() },
-                onSimilarMovieClick = { newMovieId ->
-                    navController.navigate("detail/$newMovieId")
-                }
-            )
+                val decodedPoster = URLDecoder.decode(posterRaw, StandardCharsets.UTF_8.toString())
+
+                DetailScreen(
+                    movieId = movieId,
+                    initialPosterPath = decodedPoster,
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@composable,
+                    onBackClick = { navController.popBackStack() },
+                    onSimilarMovieClick = { newId, newPoster ->
+                        navController.navigate("detail/$newId?poster=$newPoster")
+                    }
+                )
+            }
         }
     }
 }

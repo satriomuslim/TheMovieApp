@@ -1,5 +1,8 @@
 package com.main.themovieapp.presentation.components
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -28,12 +31,17 @@ import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
 import com.main.themovieapp.presentation.home.TrendingUiState
 import com.main.themovieapp.presentation.theme.NeonPurple
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import kotlin.math.absoluteValue
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun TrendingCarousel(
     trendingState: TrendingUiState,
-    onMovieClick: (Int) -> Unit
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    onMovieClick: (Int, String) -> Unit
 ) {
     when (trendingState) {
         is TrendingUiState.Loading -> {
@@ -56,69 +64,63 @@ fun TrendingCarousel(
             val movies = trendingState.movies
             val pagerState = rememberPagerState(pageCount = { movies.size })
 
-            HorizontalPager(
-                state = pagerState,
-                contentPadding = PaddingValues(horizontal = 8.dp),
-                pageSpacing = 16.dp,
-                modifier = Modifier.fillMaxWidth().height(200.dp)
-            ) { page ->
-                val movie = movies[page]
+            with(sharedTransitionScope) {
+                HorizontalPager(
+                    state = pagerState,
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    pageSpacing = 16.dp,
+                    modifier = Modifier.fillMaxWidth().height(200.dp)
+                ) { page ->
+                    val movie = movies[page]
 
-                val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                val scaleFactor = 0.85f + (1f - 0.85f) * (1f - pageOffset.absoluteValue.coerceIn(0f, 1f))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            scaleX = scaleFactor
-                            scaleY = scaleFactor
-                        }
-                        .clip(RoundedCornerShape(16.dp))
-                        .clickable { onMovieClick(movie.id) }
-                ) {
-                    AsyncImage(
-                        model = "https://image.tmdb.org/t/p/w780${movie.backdropPath}",
-                        contentDescription = movie.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                    val scaleFactor = 0.85f + (1f - 0.85f) * (1f - pageOffset.absoluteValue.coerceIn(0f, 1f))
 
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
-                                    startY = 200f
-                                )
-                            )
-                    )
-
-                    Text(
-                        text = movie.title,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(16.dp)
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(12.dp)
-                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .graphicsLayer {
+                                scaleX = scaleFactor
+                                scaleY = scaleFactor
+                            }
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable {
+                                val poster = movie.posterPath ?: ""
+                                val encodedPoster = URLEncoder.encode(poster, StandardCharsets.UTF_8.toString())
+                                onMovieClick(movie.id, encodedPoster)
+                            }
                     ) {
+                        AsyncImage(
+                            model = "https://image.tmdb.org/t/p/w780${movie.backdropPath}",
+                            contentDescription = movie.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .sharedElement(
+                                    rememberSharedContentState(key = "image_${movie.id}"),
+                                    animatedVisibilityScope = animatedVisibilityScope
+                                )
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.verticalGradient(
+                                        colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.9f)),
+                                        startY = 200f
+                                    )
+                                )
+                        )
                         Text(
-                            text = "★ ${String.format("%.1f", movie.voteAverage)}",
-                            color = Color(0xFFFFD700),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            text = movie.title,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.align(
+                                Alignment.BottomStart).padding(16.dp)
                         )
                     }
                 }

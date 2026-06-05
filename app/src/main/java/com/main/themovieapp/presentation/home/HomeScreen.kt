@@ -1,5 +1,7 @@
 package com.main.themovieapp.presentation.home
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,10 +26,14 @@ import com.main.themovieapp.presentation.components.TrendingCarousel
 import com.main.themovieapp.presentation.theme.DarkBackground
 import com.main.themovieapp.presentation.theme.NeonPurple
 import org.koin.androidx.compose.koinViewModel
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 @Composable
 fun HomeScreen(
-    onMovieClick: (Int) -> Unit
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    onMovieClick: (Int, String) -> Unit
 ) {
     val viewModel: HomeViewModel = koinViewModel()
     val genreState by viewModel.genreState.collectAsState()
@@ -80,9 +86,19 @@ fun HomeScreen(
                     )
                 }
 
-                items(searchResults.itemCount) { index ->
-                    searchResults[index]?.let { movie ->
-                        MovieCard(movie = movie, onClick = { onMovieClick(movie.id) })
+                items(movies.itemCount) { index ->
+                    val movie = movies[index]
+                    movie?.let {
+                        MovieCard(
+                            movie = it,
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            onClick = {
+                                val poster = it.posterPath ?: ""
+                                val encodedPoster = URLEncoder.encode(poster, StandardCharsets.UTF_8.toString())
+                                onMovieClick(it.id, encodedPoster)
+                            }
+                        )
                     }
                 }
 
@@ -112,7 +128,12 @@ fun HomeScreen(
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(bottom = 12.dp)
                         )
-                        TrendingCarousel(trendingState = trendingState, onMovieClick = onMovieClick)
+                        TrendingCarousel(
+                            trendingState = trendingState,
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            onMovieClick = onMovieClick
+                        )
                     }
                 }
 
@@ -147,7 +168,16 @@ fun HomeScreen(
                 items(movies.itemCount) { index ->
                     val movie = movies[index]
                     movie?.let {
-                        MovieCard(movie = it, onClick = { onMovieClick(it.id) })
+                        MovieCard(
+                            movie = it,
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedVisibilityScope = animatedVisibilityScope,
+                            onClick = {
+                                val poster = it.posterPath ?: ""
+                                val encodedPoster = URLEncoder.encode(poster, StandardCharsets.UTF_8.toString())
+                                onMovieClick(it.id, encodedPoster)
+                            }
+                        )
                     }
                 }
 
